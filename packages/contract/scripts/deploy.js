@@ -1,27 +1,37 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
-// will compile your contracts, add the Hardhat Runtime Environment's members to the
-// global scope, and execute the script.
 const hre = require("hardhat");
+const web3 = require("web3");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
+  // コントラクトをdeployしているアドレスの取得
+  const [deployer] = await hre.ethers.getSigners();
 
-  const lockedAmount = hre.ethers.utils.parseEther("0.001");
-
-  const Lock = await hre.ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
-
-  await lock.deployed();
-
-  console.log(
-    `Lock with ${ethers.utils.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`
+  // コントラクトのdeploy
+  const daitokenContractFactory = await hre.ethers.getContractFactory(
+    "DaiToken"
   );
+  const dapptokenContractFactory = await hre.ethers.getContractFactory(
+    "DappToken"
+  );
+  const tokenfarmContractFactory = await hre.ethers.getContractFactory(
+    "TokenFarm"
+  );
+  const daiToken = await daitokenContractFactory.deploy();
+  const dappToken = await dapptokenContractFactory.deploy();
+  const tokenFarm = await tokenfarmContractFactory.deploy(
+    dappToken.address,
+    daiToken.address
+  );
+
+  // 全てのDappトークンをファームに移動する(1 million)
+  await dappToken.transfer(
+    tokenFarm.address,
+    web3.utils.toWei("1000000", "ether")
+  );
+
+  console.log("Deploying contracts with account: ", deployer.address);
+  console.log("Dai Token Contract has been deployed to: ", daiToken.address);
+  console.log("Dapp Token Contract has been deployed to: ", dappToken.address);
+  console.log("TokenFarm Contract has been deployed to: ", tokenFarm.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
