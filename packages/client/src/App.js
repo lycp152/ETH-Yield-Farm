@@ -19,8 +19,23 @@ function App() {
   const [stakedToken, setStakedToken] = useState("0");
   const [transferAddress, setTransferAddress] = useState("");
 
+  // コントラクトアドレスを記載
+  const daiTokenAddress = "0x7241410c0F251A0B00253134aEfd63145F7080cb";
+  const dappTokenAddress = "0x1054c06bC1a977c76B6F4CbdB393afFe4b3Ee4F7";
+  const tokenfarmAddress = "0x13deA3342733b81370EfCd6efAB6B840C765a0a1";
+
   //ウォレットアドレス(コントラクトの保持者)を記載
-  const walletAddress = "0x04CD057E4bAD766361348F26E847B546cBBc7946";
+  const walletAddress = "0xF617B53b3c9b4523e571f23d869aCD115D2F84c5";
+
+  /* ABIの内容を参照する変数を作成 */
+  const daiTokenABI = daiAbi.abi;
+  const dappTokenABI = dappAbi.abi;
+  const tokenfarmABI = tokenfarmAbi.abi;
+
+  // コントラクトのインスタンスを格納する変数
+  let daiContract;
+  let dappContract;
+  let tokenfarmContract;
 
   // ETHに変換する関数
   function convertToEth(n) {
@@ -31,6 +46,99 @@ function App() {
   function convertToWei(n) {
     return n * 10 ** 18;
   }
+
+  // 各トークンの残高を取得する関数
+  const getBalance = async () => {
+    const { ethereum } = window;
+    try {
+      if (ethereum) {
+        // コントラクトのインスタンスを作成
+        const provider = new ethers.providers.Web3Provider(ethereum);
+        const signer = provider.getSigner();
+        console.log(signer);
+
+        daiContract = new ethers.Contract(daiTokenAddress, daiTokenABI, signer);
+        dappContract = new ethers.Contract(
+          dappTokenAddress,
+          dappTokenABI,
+          signer
+        );
+        tokenfarmContract = new ethers.Contract(
+          tokenfarmAddress,
+          tokenfarmABI,
+          signer
+        );
+
+        // 各トークンの残高を格納
+        let daiBalance = await daiContract.balanceOf(currentAccount);
+        let dappBalance = await dappContract.balanceOf(currentAccount);
+        setDaiBalance(convertToEth(daiBalance));
+        setDappBalance(convertToEth(dappBalance));
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  // stakeする値を格納する関数
+  const handleStakeChange = (event) => {
+    setStakedToken(event.target.value);
+    console.log("staked token is:", event.target.value);
+  };
+
+  // stake関数
+  const stake = async () => {
+    try {
+      if (currentAccount !== "") {
+        await daiContract.approve(
+          tokenfarmContract.address,
+          convertToWei(stakedToken).toString()
+        );
+        await tokenfarmContract.stakeTokens(
+          convertToWei(stakedToken).toString()
+        );
+        console.log("value is:", stakedToken);
+      }
+      console.log("Connect Wallet");
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  // unstake関数
+  const unStake = async () => {
+    try {
+      if (currentAccount !== "") {
+        await tokenfarmContract.unstakeTokens(
+          convertToWei(stakedToken).toString()
+        );
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  // transferする先のアドレスを格納する関数
+  const handleTransferChange = (event) => {
+    setTransferAddress(event.target.value);
+    console.log("staked token is:", event.target.value);
+  };
+
+  // transfer関数
+  const transfer = async (event) => {
+    try {
+      if (currentAccount !== "") {
+        await daiContract.transfer(
+          transferAddress,
+          convertToWei(100).toString()
+        );
+        console.log("Successed to transfer DAI token to:", transferAddress);
+      }
+      console.log("Connect Wallet");
+    } catch (error) {
+      console.log(error);
+    }
+  };
 
   // ウォレット接続を確認する関数
   const checkIfWalletIsConnected = async () => {
@@ -48,6 +156,7 @@ function App() {
         const account = accounts[0];
         console.log("Found an authorized account:", account);
         setCurrentAccount(account);
+        getBalance();
       } else {
         console.log("No authorized account found");
       }
@@ -101,17 +210,19 @@ function App() {
         <div className="w-1/2 h-1/3 flex justify-center items-center pt-36">
           <div className="w-1/2 h-1/2 flex justify-center items-center flex-col">
             <div>Staking Balance</div>
-            <div>0 DAI</div>
+            <div>{currentDaiBalance} DAI</div>
           </div>
           <div className="w-1/2 h-1/2 flex justify-center items-center flex-col">
             <div>Reward Balance</div>
-            <div>0 DAPP</div>
+            <div>{currentDappBalance} DAPP</div>
           </div>
         </div>
         <div className="h-1/2 w-1/2 flex justify-start items-center flex-col">
           <div className="flex-row flex justify-between items-end w-full px-20">
             <div className="text-xl">Stake Tokens</div>
-            <div className="text-gray-300">Balance: 0 DAI</div>
+            <div className="text-gray-300">
+              Balance: {currentDaiBalance} DAI
+            </div>
           </div>
           <div className="felx-row w-full flex justify-between items-end px-20 py-3">
             <input
@@ -120,16 +231,23 @@ function App() {
               type="text"
               id="stake"
               name="stake"
+              value={stakedToken}
+              onChange={handleStakeChange}
             />
             <div className="flex-row flex justify-between items-end">
               <img src={"dai.png"} alt="Logo" className="px-5 h-9 w-18" />
               <div>DAI</div>
             </div>
           </div>
-          <div className="w-full h-14 bg-blue-500 text-white m-3 flex justify-center items-center">
+          <div
+            className="w-full h-14 bg-blue-500 text-white m-3 flex justify-center items-center"
+            onClick={stake}
+          >
             Stake!
           </div>
-          <div className="text-blue-400">UN-STAKE..</div>
+          <div className="text-blue-400" onClick={unStake}>
+            UN-STAKE..
+          </div>
           {currentAccount.toUpperCase() === walletAddress.toUpperCase() ? (
             <>
               <div className="text-xl pt-20">Transfer 100 DAI</div>
@@ -140,9 +258,14 @@ function App() {
                   type="text"
                   id="transfer"
                   name="transfer"
+                  value={transferAddress}
+                  onChange={handleTransferChange}
                 />
               </div>
-              <div className="w-full h-14 bg-blue-500 text-white m-3 flex justify-center items-center">
+              <div
+                className="w-full h-14 bg-blue-500 text-white m-3 flex justify-center items-center"
+                onClick={transfer}
+              >
                 Transfer!
               </div>
             </>
